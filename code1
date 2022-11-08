@@ -1,0 +1,309 @@
+select * from (select * from (Select
+        a.OriginCity,
+        a.OriginState,
+        a.OriginCountry,
+        a.DestCity,
+        a.DestState,
+        a.DestCountry,
+       
+        a.LaneCreated,
+        a.ReverseLaneCreated,
+       
+        a.Origin,
+        a.Destination,
+        a.Custom,
+        a.ShipDate,
+        year(A.ShipDate) as Year,
+        DATENAME(qq, A.ShipDate) as Qtr,
+        month(A.ShipDate)  as Month,
+        DATENAME(month,A.ShipDate) as MonthNAME,
+        a.Mode,
+        a.DerivedRevenue,
+        a.CustomerName,
+        a.CarrierName,
+        a.IBOName
+       
+      From
+        (
+          SELECT
+            count(distinct(FL.[MoveId])) as Count,
+            ISNULL(
+              FL.ActualPickupDate,
+              FL.ExpectedEarliestPickupDate
+            ) AS ShipDate,
+            upper(
+              Concat(
+                ltrim(rtrim(FL.[OriginCity])),
+                ' ',
+                ltrim(rtrim(FL.[OriginState])),
+                ' ',
+                ltrim(rtrim(replace(FL.[OriginCountry],'USA','US'))),
+                ' - ',
+                ltrim(rtrim(FL.[DestCity])),
+                ' ',
+                ltrim(rtrim(FL.[DestState])),
+                ' ',
+                replace(FL.[DestCountry],'USA','US')
+              )
+            ) as LaneCreated,
+            upper(
+              Concat(
+                ltrim(rtrim(FL.[DestCity])),
+                ' ',
+                ltrim(rtrim(FL.[DestState])),
+                ' ',
+                ltrim(rtrim(replace(FL.[DestCountry],'USA','US'))),
+                ' - ',
+                ltrim(rtrim(FL.[OriginCity])),
+                ' ',
+                ltrim(rtrim(FL.[OriginState])),
+                ' ',
+                ltrim(rtrim(Replace(FL.[OriginCountry],'USA','US')))
+              )
+            ) as ReverseLaneCreated,
+            FL.[Mode],
+            Concat(
+              ltrim(rtrim(FL.[OriginCity])),
+              ',',
+              ltrim(rtrim(FL.[OriginState])),
+              ',',
+              ltrim(rtrim(replace(FL.[OriginCountry],'USA','US'))),
+              ',',
+              ltrim(rtrim(FL.[originzip]))
+            ) as Origin,
+            Concat(
+              ltrim(rtrim(FL.[DestCity])),
+              ',',
+              ltrim(rtrim(FL.[DestState])),
+              ',',
+              ltrim(rtrim(Replace(FL.[DestCountry],'USA','US'))),
+              ',',
+              ltrim(rtrim(FL.[destzip]))
+            ) as Destination,
+            FL.[OriginCity],
+            FL.[OriginState],
+            FL.[OriginCountry],
+            FL.[DestCity],
+            FL.Weight,
+            FL.[DestState],
+            FL.[DestCountry],
+            Cast(FL.Distance as Varchar(255)) as Distance,
+            FL.CustomerKey,
+            FL.CarrierId,
+            FL.IBOKey,
+            FL.ActualEquipmentKey as EquipmentCode,
+            FL.TotalCarrierCost,
+            FL.DerivedRevenue,
+            'Mode' as Custom,
+            ( CASE
+  WHEN DC.CustomerName like  '%Anheuser Busch%' and  DC.CustomerName like  '%Anheuser-Busch%' THEN 'Anheuser Busch'
+  WHEN DC.CustomerName like '%Brown Forman%'  THEN 'Brown Forman'
+  WHEN DC.CustomerName like '%Constellation%'  THEN 'Constellation'
+  WHEN DC.CustomerName like '%Jim Beam/Suntory%'  THEN 'Jim Beam/Suntory'
+  WHEN DC.CustomerName like '%Molson/Coors%'  THEN 'Molson/Coors'
+  WHEN DC.CustomerName like '%Pernod Ricard%'  THEN 'Pernod Ricard'
+  WHEN DC.CustomerName like '%Sazerac%'  THEN 'Sazerac'
+    WHEN DC.CustomerName like '%The Vernon Company%'  THEN 'The Vernon Company'
+      WHEN DC.CustomerName like '%Bacardi%'  THEN 'Bacardi' 
+      else  DC.CustomerName  end)  as CustomerName,
+            DCC.CarrierName,
+            DI.IBOName,
+            DE.EquipmentKey,
+            FL.shipper,
+            FL.Consignee
+          FROM
+            [ModeDW].[datamart].[FactMove] FM with (NoLock)
+            INNER JOIN [ModeDW].[datamart].[FactLoad] FL with (NoLock) ON FM.MoveId = FL.MoveId
+            and FM.DataSourceId = FL.DataSourceId
+            LEFT JOIN [ModeDW].[EDW].[DimCustomer] DC with (NoLock) ON FL.CustomerKey = DC.CustomerId
+            AND FL.DataSourceId = DC.DataSourceID
+            LEFT JOIN [ModeDW].[EDW].[DimEquipment] DE with (NoLock) ON FL.ActualEquipmentKey = DE.EquipmentKey
+            AND FL.DataSourceId = DE.DataSourceID
+            LEFT JOIN [ModeDW].[EDW].[DimCarrier] DCC with (NoLock) ON FL.CarrierId = DCC.CarrierIDFromSourceSystem
+            AND FL.DataSourceId = DCC.DataSourceId
+            LEFT JOIN [ModeDW].[EDW].[DimIBO] DI with (NoLock) ON CAST(FL.IBOKey AS VARCHAR(255)) = CAST(DI.IBOName AS VARCHAR(255))
+          group by
+            FL.Mode,
+            FL.OriginCity,
+            FL.OriginState,
+            FL.Distance,
+            FL.OriginCountry,
+            FL.Destcity,
+            FL.DestState,
+            FL.DestCountry,
+            FL.CustomerKey,
+            FL.CarrierId,
+            FL.IBOKey,
+            FL.ActualEquipmentKey,
+            FL.TotalCarrierCost,
+            FL.DerivedRevenue,
+            FL.Weight,
+            FL.ActualPickupDate,
+            FL.ExpectedEarliestPickupDate,
+            DC.CustomerName,
+            DE.EquipmentKey,
+            DCC.CarrierName,
+            DI.IBOName,
+            Fl.destzip,
+            FL.Originzip,
+            fl.Shipper,
+            fl.Consignee
+        ) as a   WHERE
+    a.ShipDate >= getdate() - 365
+    and a.ShipDate <= getdate() )A
+	
+	inner join 
+	
+	(Select
+        a.OriginCity,
+        a.OriginState,
+        a.OriginCountry,
+        a.DestCity,
+        a.DestState,
+        a.DestCountry,
+       
+        a.LaneCreated,
+        a.ReverseLaneCreated,
+        a.Mode,
+        a.Origin,
+        a.Destination,
+        a.Custom,
+        a.ShipDate,
+        year(A.ShipDate) as Year,
+        DATENAME(qq, A.ShipDate) as Qtr,
+        month(A.ShipDate)  as Month,
+        DATENAME(month,A.ShipDate) as MonthNAME,
+       
+        a.DerivedRevenue,
+        a.CustomerName,
+        a.CarrierName,
+        a.IBOName
+       
+      From
+        (
+          SELECT
+            count(distinct(FL.[MoveId])) as Count,
+            ISNULL(
+              FL.ActualPickupDate,
+              FL.ExpectedEarliestPickupDate
+            ) AS ShipDate,
+            upper(
+              Concat(
+                ltrim(rtrim(FL.[OriginCity])),
+                ' ',
+                ltrim(rtrim(FL.[OriginState])),
+                ' ',
+                ltrim(rtrim(replace(FL.[OriginCountry],'USA','US'))),
+                ' - ',
+                ltrim(rtrim(FL.[DestCity])),
+                ' ',
+                ltrim(rtrim(FL.[DestState])),
+                ' ',
+                replace(FL.[DestCountry],'USA','US')
+              )
+            ) as LaneCreated,
+            upper(
+              Concat(
+                ltrim(rtrim(FL.[DestCity])),
+                ' ',
+                ltrim(rtrim(FL.[DestState])),
+                ' ',
+                ltrim(rtrim(replace(FL.[DestCountry],'USA','US'))),
+                ' - ',
+                ltrim(rtrim(FL.[OriginCity])),
+                ' ',
+                ltrim(rtrim(FL.[OriginState])),
+                ' ',
+                ltrim(rtrim(Replace(FL.[OriginCountry],'USA','US')))
+              )
+            ) as ReverseLaneCreated,
+            FL.[Mode],
+            Concat(
+              ltrim(rtrim(FL.[OriginCity])),
+              ',',
+              ltrim(rtrim(FL.[OriginState])),
+              ',',
+              ltrim(rtrim(replace(FL.[OriginCountry],'USA','US'))),
+              ',',
+              ltrim(rtrim(FL.[originzip]))
+            ) as Origin,
+            Concat(
+              ltrim(rtrim(FL.[DestCity])),
+              ',',
+              ltrim(rtrim(FL.[DestState])),
+              ',',
+              ltrim(rtrim(Replace(FL.[DestCountry],'USA','US'))),
+              ',',
+              ltrim(rtrim(FL.[destzip]))
+            ) as Destination,
+            FL.[OriginCity],
+            FL.[OriginState],
+            FL.[OriginCountry],
+            FL.[DestCity],
+            FL.Weight,
+            FL.[DestState],
+            FL.[DestCountry],
+            Cast(FL.Distance as Varchar(255)) as Distance,
+            FL.CustomerKey,
+            FL.CarrierId,
+            FL.IBOKey,
+            FL.ActualEquipmentKey as EquipmentCode,
+            FL.TotalCarrierCost,
+            FL.DerivedRevenue,
+            'Mode' as Custom,
+            ( CASE
+  WHEN DC.CustomerName like  '%Anheuser Busch%' and  DC.CustomerName like  '%Anheuser-Busch%' THEN 'Anheuser Busch'
+  WHEN DC.CustomerName like '%Brown Forman%'  THEN 'Brown Forman'
+  WHEN DC.CustomerName like '%Constellation%'  THEN 'Constellation'
+  WHEN DC.CustomerName like '%Jim Beam/Suntory%'  THEN 'Jim Beam/Suntory'
+  WHEN DC.CustomerName like '%Molson/Coors%'  THEN 'Molson/Coors'
+  WHEN DC.CustomerName like '%Pernod Ricard%'  THEN 'Pernod Ricard'
+  WHEN DC.CustomerName like '%Sazerac%'  THEN 'Sazerac'
+    WHEN DC.CustomerName like '%The Vernon Company%'  THEN 'The Vernon Company'
+      WHEN DC.CustomerName like '%Bacardi%'  THEN 'Bacardi' 
+      else  DC.CustomerName  end)  as CustomerName,
+            DCC.CarrierName,
+            DI.IBOName,
+            DE.EquipmentKey,
+            FL.shipper,
+            FL.Consignee
+          FROM
+            [ModeDW].[datamart].[FactMove] FM with (NoLock)
+            INNER JOIN [ModeDW].[datamart].[FactLoad] FL with (NoLock) ON FM.MoveId = FL.MoveId
+            and FM.DataSourceId = FL.DataSourceId
+            LEFT JOIN [ModeDW].[EDW].[DimCustomer] DC with (NoLock) ON FL.CustomerKey = DC.CustomerId
+            AND FL.DataSourceId = DC.DataSourceID
+            LEFT JOIN [ModeDW].[EDW].[DimEquipment] DE with (NoLock) ON FL.ActualEquipmentKey = DE.EquipmentKey
+            AND FL.DataSourceId = DE.DataSourceID
+            LEFT JOIN [ModeDW].[EDW].[DimCarrier] DCC with (NoLock) ON FL.CarrierId = DCC.CarrierIDFromSourceSystem
+            AND FL.DataSourceId = DCC.DataSourceId
+            LEFT JOIN [ModeDW].[EDW].[DimIBO] DI with (NoLock) ON CAST(FL.IBOKey AS VARCHAR(255)) = CAST(DI.IBOName AS VARCHAR(255))
+          group by
+            FL.Mode,
+            FL.OriginCity,
+            FL.OriginState,
+            FL.Distance,
+            FL.OriginCountry,
+            FL.Destcity,
+            FL.DestState,
+            FL.DestCountry,
+            FL.CustomerKey,
+            FL.CarrierId,
+            FL.IBOKey,
+            FL.ActualEquipmentKey,
+            FL.TotalCarrierCost,
+            FL.DerivedRevenue,
+            FL.Weight,
+            FL.ActualPickupDate,
+            FL.ExpectedEarliestPickupDate,
+            DC.CustomerName,
+            DE.EquipmentKey,
+            DCC.CarrierName,
+            DI.IBOName,
+            Fl.destzip,
+            FL.Originzip,
+            fl.Shipper,
+            fl.Consignee
+        ) as a   WHERE
+    a.ShipDate >= getdate() - 365
+    and a.ShipDate <= getdate() )B On A.Lanecreated=b.lanecreated)C
